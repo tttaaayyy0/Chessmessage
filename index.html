@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Chess with Message</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <!-- chessboard.js css -->
+  <link rel="stylesheet" href="https://unpkg.com/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css" />
+  <style>
+    body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 20px; display:flex; flex-direction:column; align-items:center; gap:16px; }
+    #board { width: 420px; max-width: 90vw; }
+    #status { margin-top: 10px; }
+    /* overlay message */
+    .overlay {
+      position: fixed;
+      left: 50%;
+      top: 10%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.85);
+      color: white;
+      padding: 16px 22px;
+      border-radius: 8px;
+      font-size: 18px;
+      z-index: 9999;
+      display: none;
+      text-align: center;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.4);
+    }
+    .overlay.show { display:block; animation: fadeIn .2s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(-8px);} to { opacity:1; transform: translateX(-50%) translateY(0);} }
+    .controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:center; }
+    button { cursor:pointer; padding:8px 12px; border-radius:6px; border:1px solid #aaa; background: #fff; }
+  </style>
+</head>
+<body>
+  <h2>Play Chess — Scan QR to open</h2>
+
+  <div id="board"></div>
+  <div id="status">Ready</div>
+  <div class="controls">
+    <button id="startBtn">Start Position</button>
+    <button id="flipBtn">Flip Board</button>
+  </div>
+
+  <div id="overlay" class="overlay">You will always be the best chess player</div>
+
+  <!-- libs -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://unpkg.com/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.12.0/chess.min.js"></script>
+
+  <script>
+    // chess logic
+    var game = new Chess();
+
+    // overlay logic
+    var overlay = document.getElementById('overlay');
+    var overlayTimer = null;
+    var MIN_SHOW_MS = 10000; // 10 seconds minimum
+
+    function showOverlay() {
+      // show and ensure shown at least MIN_SHOW_MS
+      if (overlayTimer) {
+        // if already showing, reset timer to ensure at least MIN_SHOW_MS from now
+        clearTimeout(overlayTimer);
+      }
+      overlay.classList.add('show');
+
+      overlayTimer = setTimeout(function(){
+        overlay.classList.remove('show');
+        overlayTimer = null;
+      }, MIN_SHOW_MS);
+    }
+
+    // chessboard config
+    var board = null;
+    var cfg = {
+      draggable: true,
+      position: 'start',
+      onDragStart: onDragStart,
+      onDrop: onDrop,
+      onSnapEnd: onSnapEnd
+    };
+
+    function onDragStart(source, piece, position, orientation) {
+      // prevent dragging if game over or not player's turn (we allow both sides for simplicity)
+      if (game.game_over()) return false;
+    }
+
+    function onDrop(source, target, piece, newPos, oldPos, orientation) {
+      // try the move on the internal chess.js game
+      var move = game.move({
+        from: source,
+        to: target,
+        promotion: 'q' // auto-queen
+      });
+
+      if (move === null) {
+        // illegal move, snapback
+        return 'snapback';
+      } else {
+        // legal move -> show overlay message for at least 10s
+        showOverlay();
+        updateStatus();
+      }
+    }
+
+    function onSnapEnd() {
+      board.position(game.fen());
+    }
+
+    function updateStatus() {
+      var statusEl = document.getElementById('status');
+      var status = '';
+
+      if (game.in_checkmate()) {
+        status = 'Checkmate - game over';
+      } else if (game.in_draw()) {
+        status = 'Draw - game over';
+      } else {
+        status = (game.turn() === 'w' ? "White to move" : "Black to move");
+        if (game.in_check()) status += ' — Check!';
+      }
+      statusEl.textContent = status;
+    }
+
+    // init
+    board = Chessboard('board', cfg);
+    updateStatus();
+
+    // buttons
+    document.getElementById('startBtn').addEventListener('click', function(){
+      game.reset();
+      board.start(true);
+      updateStatus();
+    });
+
+    document.getElementById('flipBtn').addEventListener('click', function(){
+      board.flip();
+    });
+
+    // optional: ensure overlay also appears when user moves pieces by external UI (if any)
+    // but current page only allows drag moves so onDrop covers it.
+
+    // Accessibility: allow touch devices better behaviour by resizing board on orientation change
+    window.addEventListener('resize', function(){
+      board.resize();
+    });
+  </script>
+</body>
+</html>
